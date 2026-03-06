@@ -1,0 +1,28 @@
+{
+    "name": "elliottlawson/uno-skill-email-management",
+    "description": "Intelligent email triage, attention surfacing, and anomaly detection for Uno",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "ElliottLawson\\EmailManagement\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "ElliottLawson\\EmailManagement\\EmailManagementServiceProvider"
+            ]
+        },
+        "uno-skill": {
+            "name": "email-management",
+            "title": "Email Management",
+            "description": "Intelligent email triage, attention surfacing, and anomaly detection",
+            "danger_level": "moderate",
+            "version": "1.0.0"
+        }
+    }
+}
