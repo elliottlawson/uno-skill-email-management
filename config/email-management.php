@@ -4,6 +4,47 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Operating Mode
+    |--------------------------------------------------------------------------
+    |
+    | Controls what actions the skill can take:
+    |   observe    — categorizes and records, never modifies the mailbox
+    |   suggest    — surfaces recommendations for user approval
+    |   autonomous — applies rules automatically (future)
+    |
+    */
+
+    'operating_mode' => env('EMAIL_MANAGEMENT_MODE', 'observe'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Layer Toggles
+    |--------------------------------------------------------------------------
+    |
+    | Enable or disable each intelligence layer independently.
+    |
+    */
+
+    'triage_enabled' => (bool) env('EMAIL_TRIAGE_ENABLED', true),
+    'attention_enabled' => (bool) env('EMAIL_ATTENTION_ENABLED', false),
+    'anomaly_enabled' => (bool) env('EMAIL_ANOMALY_ENABLED', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Notification Priority
+    |--------------------------------------------------------------------------
+    |
+    | How aggressively to surface findings to the user:
+    |   eager  — notify immediately on high-priority items
+    |   normal — batch into digests
+    |   quiet  — only respond when asked
+    |
+    */
+
+    'notification_priority' => env('EMAIL_NOTIFICATION_PRIORITY', 'quiet'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Processing Intervals
     |--------------------------------------------------------------------------
     |

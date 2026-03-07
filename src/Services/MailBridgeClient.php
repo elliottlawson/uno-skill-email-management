@@ -4,29 +4,31 @@ declare(strict_types=1);
 
 namespace ElliottLawson\EmailManagement\Services;
 
+use App\Models\UserExternalIdentity;
+use App\Services\MailBridgeOAuthService;
+use Illuminate\Support\Facades\Log;
+use Prism\Prism\Tool as PrismTool;
+use Prism\Relay\Relay;
+
 /**
  * Client for interacting with the Mail Bridge MCP server via Prism Relay.
  *
- * This is a stub — methods will be implemented as the intelligence layer is built.
- * The pattern for Relay calls:
- *   1. Resolve the Mail Bridge URL from SystemSetting::get('mail_bridge_url')
- *   2. Set config(['relay.servers.mail-bridge.url' => $url]) at runtime
- *   3. Get OAuth token via MailBridgeOAuthService::getAccessTokenForUserId()
- *   4. Call Relay::withToken($token)->call('mail-bridge', $toolName, $params)
+ * Loads Relay tools at runtime, finds the named tool, and calls its handler.
  */
 class MailBridgeClient
 {
-    // TODO: Inject MailBridgeOAuthService and resolve user context
+    public function __construct(
+        private MailBridgeOAuthService $oauthService,
+    ) {}
 
     /**
-     * List all mailboxes for the current user.
+     * List all mailboxes for the given user.
      *
      * @return array<int, array<string, mixed>>
      */
     public function listMailboxes(int $userId): array
     {
-        // TODO: Call Relay 'list-mailboxes' tool
-        return [];
+        return $this->callTool($userId, 'list-mailboxes', []);
     }
 
     /**
@@ -37,8 +39,9 @@ class MailBridgeClient
      */
     public function listMessages(int $userId, string $mailboxId, array $filters = []): array
     {
-        // TODO: Call Relay 'list-messages' tool with filters
-        return [];
+        $params = array_merge(['mailboxId' => $mailboxId], $filters);
+
+        return $this->callTool($userId, 'list-messages', $params);
     }
 
     /**
@@ -48,7 +51,83 @@ class MailBridgeClient
      */
     public function getMessage(int $userId, string $mailboxId, string $messageId): ?array
     {
-        // TODO: Call Relay 'get-message' tool
-        return null;
+        $result = $this->callTool($userId, 'get-message', [
+            'mailboxId' => $mailboxId,
+            'messageId' => $messageId,
+        ]);
+
+        return $result ?: null;
+    }
+
+    /**
+     * Get all user IDs that have a Mail Bridge connection.
+     *
+     * @return array<int, int>
+     */
+    public function getConnectedUserIds(): array
+    {
+        return UserExternalIdentity::query()
+            ->where('provider', 'mail-bridge')
+            ->pluck('user_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * Call a Mail Bridge MCP tool via Relay.
+     *
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function callTool(int $userId, string $toolName, array $params): array
+    {
+        $token = $this->oauthService->getAccessTokenForUserId($userId);
+
+        if (! $token) {
+            Log::warning('MailBridgeClient: No access token for user', ['user_id' => $userId]);
+
+            return [];
+        }
+
+        $this->configureRelayUrl();
+
+        try {
+            $tools = (new Relay('mail-bridge'))->withToken($token)->tools();
+            $relayToolName = "relay__mail-bridge__{$toolName}";
+
+            $tool = collect($tools)->first(fn (PrismTool $t) => $t->name() === $relayToolName);
+
+            if (! $tool) {
+                Log::warning('MailBridgeClient: Tool not found', ['tool' => $toolName]);
+
+                return [];
+            }
+
+            $result = $tool->handle(...$params);
+            $decoded = json_decode((string) $result, true);
+
+            return is_array($decoded) ? $decoded : [];
+        } catch (\Throwable $e) {
+            Log::error('MailBridgeClient: Tool call failed', [
+                'tool' => $toolName,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /**
+     * Set the Relay server URL from system settings at runtime.
+     */
+    private function configureRelayUrl(): void
+    {
+        $tokenEndpoint = MailBridgeOAuthService::getTokenEndpoint();
+
+        if ($tokenEndpoint) {
+            $mcpUrl = str_replace('/connect/token', '/mcp', $tokenEndpoint);
+            config(['relay.servers.mail-bridge.url' => $mcpUrl]);
+        }
     }
 }
