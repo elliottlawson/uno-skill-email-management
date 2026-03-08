@@ -119,9 +119,9 @@ class EmailManagementSkill implements HasSettings, Skill
                 'type' => 'select',
                 'default' => 'observe',
                 'options' => [
-                    ['value' => 'observe', 'label' => 'Observe (read-only)'],
-                    ['value' => 'suggest', 'label' => 'Suggest (coming soon)'],
-                    ['value' => 'autonomous', 'label' => 'Autonomous (coming soon)'],
+                    ['value' => 'observe', 'label' => 'Observe — Read-only analysis, never modifies your mailbox'],
+                    ['value' => 'suggest', 'label' => 'Suggest — Surfaces recommendations for your approval (coming soon)'],
+                    ['value' => 'autonomous', 'label' => 'Autonomous — Applies rules automatically (coming soon)'],
                 ],
             ],
             [
@@ -142,9 +142,10 @@ class EmailManagementSkill implements HasSettings, Skill
             [
                 'key' => 'email-management.categorization_model',
                 'label' => 'Categorization Model',
-                'description' => 'LLM model used for email categorization. Haiku recommended for speed.',
-                'type' => 'text',
+                'description' => 'LLM model used for email categorization. Faster models recommended for throughput.',
+                'type' => 'select',
                 'default' => 'anthropic:claude-haiku-4-5-20251001',
+                'options' => $this->buildModelOptions(),
             ],
             [
                 'key' => 'email-management.notification_priority',
@@ -153,9 +154,9 @@ class EmailManagementSkill implements HasSettings, Skill
                 'type' => 'select',
                 'default' => 'quiet',
                 'options' => [
-                    ['value' => 'quiet', 'label' => 'Quiet (only when asked)'],
-                    ['value' => 'normal', 'label' => 'Normal (batched digests)'],
-                    ['value' => 'eager', 'label' => 'Eager (immediate alerts)'],
+                    ['value' => 'quiet', 'label' => 'Quiet — Only shows email insights when you ask'],
+                    ['value' => 'normal', 'label' => 'Normal — Includes email highlights in periodic digests'],
+                    ['value' => 'eager', 'label' => 'Eager — Alerts you immediately for urgent emails'],
                 ],
             ],
         ];
@@ -164,15 +165,19 @@ class EmailManagementSkill implements HasSettings, Skill
     public function setupInstructions(): ?string
     {
         return <<<'MD'
-        ## Connect your email
+        ## Getting Started
 
-        The Email Management skill requires a Mail Bridge connection to access your mailbox.
+        The Email Management skill watches your inbox in the background and categorizes emails so you can get quick digests instead of scanning everything yourself.
 
+        ### Connect your email
         1. Go to [Email Settings](/settings/email) to connect your email account via OAuth
-        2. Once connected, the skill will automatically begin categorizing your emails in the background
-        3. Ask "give me an email digest" to see categorized results
+        2. Once connected, the skill will begin categorizing emails automatically
+        3. Ask **"give me an email digest"** to see what needs your attention
 
-        **Note:** This skill starts in **observe mode** — it only reads and categorizes emails, never modifies your mailbox.
+        ### How it works
+        - Emails are sorted into categories: **action required**, **needs reply**, **financial**, **calendar**, **newsletters**, and more
+        - In **observe mode**, the skill only reads and categorizes — it never modifies, moves, or deletes anything
+        - You can change the operating mode and notification preferences above
         MD;
     }
 
@@ -206,5 +211,30 @@ class EmailManagementSkill implements HasSettings, Skill
                     : 'Disabled',
             ],
         ];
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function buildModelOptions(): array
+    {
+        $options = [];
+        $providers = config('agent.providers', []);
+
+        foreach ($providers as $providerKey => $providerConfig) {
+            if (! isset($providerConfig['models']) || ! is_array($providerConfig['models'])) {
+                continue;
+            }
+
+            foreach ($providerConfig['models'] as $modelId => $modelName) {
+                $options[] = [
+                    'value' => "{$providerKey}:{$modelId}",
+                    'label' => "{$modelName} ({$providerKey})",
+                ];
+            }
+        }
+
+
+        return $options;
     }
 }
